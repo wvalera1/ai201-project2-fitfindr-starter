@@ -79,6 +79,35 @@ It returns a list of dicts for each listing that matches, and returns an empty l
 **How does your agent decide which tool to call next?**
 <!-- Describe the logic your planning loop uses. What does it look at? What conditions change its behavior? How does it know when it's done? -->
 
+`run_agent(query, wardrobe)` executes a fixed linear sequence with one early-exit branch. There is no dynamic tool selection; the order is always parse -> search -> suggest -> caption, unless search returns nothing.
+
+**Step 1 — Initialize session**
+Call `_new_session(query, wardrobe)` to create the session dict. All output fields (`search_results`, `selected_item`, `outfit_suggestion`, `fit_card`, `error`) start as empty/None.
+
+**Step 2 — Parse the query**
+Extract three values from `query` using regex:
+- `description`: the full query string with price and size tokens stripped (e.g. `"vintage graphic tee"`)
+- `size`: the first match of a size pattern like `size [XS|S|M|L|XL|XXS|XXL|\d+]`, case-insensitive; `None` if not found
+- `max_price`: the first dollar amount found (e.g. `$30` -> `30.0`); `None` if not found
+
+Store all three in `session["parsed"]` as `{"description": ..., "size": ..., "max_price": ...}`.
+
+**Step 3 — Call `search_listings` and branch on results**
+Call `search_listings(session["parsed"]["description"], session["parsed"].get("size"), session["parsed"].get("max_price"))` and store the return value in `session["search_results"]`.
+
+- **If `session["search_results"]` is an empty list:** set `session["error"]` to a helpful message such as `"No listings matched your search. Try broader keywords, remove the size filter, or raise your price limit."` then immediately `return session`. Do NOT call `suggest_outfit` or `create_fit_card`.
+- **If `session["search_results"]` is non-empty:** set `session["selected_item"] = session["search_results"][0]` (the highest-relevance result) and continue to Step 4.
+
+**Step 4 — Call `suggest_outfit`**
+Call `suggest_outfit(session["selected_item"], session["wardrobe"])` and store the returned string in `session["outfit_suggestion"]`. No early-exit branch here, `suggest_outfit` handles an empty wardrobe internally by returning general styling advice instead of raising.
+
+**Step 5 — Call `create_fit_card`**
+Call `create_fit_card(session["outfit_suggestion"], session["selected_item"])` and store the returned string in `session["fit_card"]`. No early-exit branch here — `create_fit_card` handles a missing/empty outfit string by returning a descriptive error message string instead of raising.
+
+**Step 6 — Return session**
+Return the completed session dict. The caller checks `session["error"]` first; if it is `None`, all three output fields (`selected_item`, `outfit_suggestion`, `fit_card`) are populated.
+
+**The agent is done** after Step 6. It does not loop or retry. Each run processes exactly one query.
 ---
 
 ## State Management
@@ -94,22 +123,30 @@ For each tool, describe the specific failure mode you're handling and what the a
 
 | Tool | Failure mode | Agent response |
 |------|-------------|----------------|
-| search_listings | No results match the query | |
-| suggest_outfit | Wardrobe is empty | |
-| create_fit_card | Outfit input is missing or incomplete | |
+| search_listings | No results match the query | Return an empty list (but don't raise an exception). |
+| suggest_outfit | Wardrobe is empty | Offer general styling advice for the item rather than raising an exception or returning an empty string. |
+| create_fit_card | Outfit input is missing or incomplete | Return a descriptive error message, but don't raise an exception. |
 
 ---
 
 ## Architecture
 
-<!-- Draw a diagram of your agent showing how the components connect:
-     User input → Planning Loop → Tools (search_listings, suggest_outfit, create_fit_card)
-                                                                          ↕
-                                                                   State / Session
-     Show what triggers each tool, how state flows between them, and where error paths branch off.
-     ASCII art, a Mermaid diagram (https://mermaid.js.org/syntax/flowchart.html), or an embedded
-     sketch are all fine. You'll share this diagram with an AI tool when asking it to implement
-     the planning loop and each individual tool. -->
+```mermaid
+flowchart TD
+    U([User]) -->|"query, wardrobe"| PL
+
+    PL["Planning Loop\nparse query → description, size, max_price"]
+
+    PL -->|"description, size, max_price"| SL["search_listings()"]
+
+    SL -->|"results = []"| ERR["ERROR: set session.error\nreturn early"]
+    SL -->|"selected_item = results[0]"| SO["suggest_outfit()"]
+
+    SO -->|"selected_item, wardrobe"| FC["create_fit_card()"]
+
+    FC -->|"fit_card string"| RET([Return session])
+    ERR -.->|"skip remaining tools"| RET
+```
 
 ---
 

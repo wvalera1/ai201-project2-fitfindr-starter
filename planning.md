@@ -113,7 +113,20 @@ Return the completed session dict. The caller checks `session["error"]` first; i
 ## State Management
 
 **How does information from one tool get passed to the next?**
-<!-- Describe how your agent stores and accesses state within a session. What data is tracked? How is it passed between tool calls? -->
+
+All state lives in a single `session` dict created at the start of `run_agent()` by `_new_session(query, wardrobe)`. No tool talks to another tool directly, each tool writes its output into the session, and the next tool reads from the session to get its inputs.
+
+| Field | Written by | Read by |
+|-------|-----------|---------|
+| `session["parsed"]` | query parser (Step 2) | `search_listings()` call |
+| `session["search_results"]` | `search_listings()` | empty-check branch |
+| `session["selected_item"]` | planning loop (`results[0]`) | `suggest_outfit()`, `create_fit_card()` |
+| `session["wardrobe"]` | `_new_session()` (from caller) | `suggest_outfit()` |
+| `session["outfit_suggestion"]` | `suggest_outfit()` | `create_fit_card()` |
+| `session["fit_card"]` | `create_fit_card()` | caller (`app.py`) |
+| `session["error"]` | planning loop (on empty results) | caller (`app.py`) |
+
+The session dict is returned at the end of `run_agent()`. `app.py` reads `session["error"]` first, if it is not `None`, the other output fields are `None` and an error message is shown instead.
 
 ---
 
@@ -163,10 +176,9 @@ flowchart TD
      search_listings() using load_listings() from the data loader — then test it against 3 queries
      before trusting it" is a plan. -->
 
-**Milestone 3 — Individual tool implementations:**
+**Milestone 3 — Individual tool implementations:** I'll use Claude Code to implement and test each tool individually. I'll give Claude my Tool 1 spec (inputs, return value, faiure mode) and ask it to implement search_listings() using load_listings() from the data lodaer, then test it against 3 queries before trusting it. I will repeat this for the other two tools in the spec.
 
-**Milestone 4 — Planning loop and state management:**
-
+**Milestone 4 — Planning loop and state management:** I'll use Claue Code to connect my tools through a planning loop and test that state passes correctly between them. I'll give Claude my diagram, Planning Loop + State Management sections from `planning.md`. Once created, I will then test it against 3 different queries, and record actual vs expected outputs to ensure that planning loop and state are running correctly.
 ---
 
 ## A Complete Interaction (Step by Step)

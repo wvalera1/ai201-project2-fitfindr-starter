@@ -18,6 +18,8 @@ Usage (once implemented):
     print(result["error"])   # None on success
 """
 
+import re
+
 from tools import search_listings, suggest_outfit, create_fit_card
 
 
@@ -92,9 +94,41 @@ def run_agent(query: str, wardrobe: dict) -> dict:
     Before writing code, complete the Planning Loop and State Management sections
     of planning.md — your implementation should match what you described there.
     """
-    # TODO: implement the planning loop
+
     session = _new_session(query, wardrobe)
-    session["error"] = "Planning loop not yet implemented."
+
+    size_match = re.search(r'\bsize\s+(\S+)', query, re.IGNORECASE)
+    price_match = re.search(r'\$(\d+(?:\.\d+)?)', query)
+
+    size = size_match.group(1) if size_match else None
+    max_price = float(price_match.group(1)) if price_match else None
+
+    description = re.sub(r'\bsize\s+\S+', '', query, flags=re.IGNORECASE)
+    description = re.sub(r'\$\d+(?:\.\d+)?', '', description)
+    description = re.sub(r'\bunder\b', '', description, flags=re.IGNORECASE)
+    description = ' '.join(description.split())
+
+    session["parsed"] = {"description": description, "size": size, "max_price": max_price}
+
+    session["search_results"] = search_listings(description, size=size, max_price=max_price)
+
+    if not session["search_results"]:
+        session["error"] = (
+            "No listings matched your search. "
+            "Try broader keywords, remove the size filter, or raise your price limit."
+        )
+        return session
+
+    session["selected_item"] = session["search_results"][0]
+
+    session["outfit_suggestion"] = suggest_outfit(
+        session["selected_item"], session["wardrobe"]
+    )
+
+    session["fit_card"] = create_fit_card(
+        session["outfit_suggestion"], session["selected_item"]
+    )
+
     return session
 
 

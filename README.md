@@ -145,9 +145,10 @@ The session dict is the return value of `run_agent()`. State was verified to flo
 
 **One way the spec helped:** Establishing the planning loop, state management table, tools, and architecture prior to writing any code was helpful in understanding the big picture of the system. It helped me better understand how the agent was going to work. I think it also made the implementation step easier, because I had already described the entire structure of the project beforehand
 
-**One way implementation diverged from the spec:** 
+**One way implementation diverged from the spec:** The spec described exact size matching, but in the implementation I used case-insensitive substring matching, that way the `search_listing()` tool wouldn't be under too strict constraints and not return anything
 
 
 ## AI Usage
-**Instance 1:** I 
-**Instance 2:**
+**Instance 1:** I used Claude Code implement every tool in the spec. For each implementation, I verified against 3 queries to make sure that the generated code was returning the exact output I was expected. If it wasn't, I overrode.
+
+**Instance 2:** I used Claude Code to implement the planning loop from my spec. I verified the implementation against various queries to ensure that the agent was following the lop that I had established. 

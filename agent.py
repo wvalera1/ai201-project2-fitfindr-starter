@@ -110,7 +110,11 @@ def run_agent(query: str, wardrobe: dict) -> dict:
 
     session["parsed"] = {"description": description, "size": size, "max_price": max_price}
 
-    session["search_results"] = search_listings(description, size=size, max_price=max_price)
+    session["search_results"] = search_listings(
+        session["parsed"]["description"],
+        size=session["parsed"]["size"],
+        max_price=session["parsed"]["max_price"],
+    )
 
     if not session["search_results"]:
         session["error"] = (
